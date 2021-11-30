@@ -29,11 +29,10 @@ func delhost(host, name string) string {
 		if line == "# "+name+" Start" {
 			found = true
 		}
-		if !found {
-			result = append(result, line)
-		}
 		if line == "# "+name+" End" {
 			found = false
+		} else if !found {
+			result = append(result, line)
 		}
 	}
 	return strings.Join(result, "\n")
