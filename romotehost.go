@@ -23,7 +23,7 @@ func whost(host string) error {
 
 func delhost(host, name string) string {
 	lines := strings.Split(host, "\n")
-	result := make([]string, 0)
+	result := make([]string, 0, len(lines))
 	found := false
 	for _, line := range lines {
 		if line == "# "+name+" Start" {
@@ -50,9 +50,11 @@ func main() {
 
 	dry := parser.Flag("d", "dry", &argparse.Options{Required: false, Help: "print only"})
 
-	url := parser.String("u", "url", &argparse.Options{Required: true, Help: "url"})
+	url := parser.String("u", "url", &argparse.Options{Required: false, Help: "url"})
 
 	name := parser.String("n", "name", &argparse.Options{Required: true, Help: "rule name"})
+
+	rm := parser.Flag("r", "rm", &argparse.Options{Required: false, Help: "remove"})
 
 	// Parse input
 	err := parser.Parse(os.Args)
@@ -62,24 +64,30 @@ func main() {
 		fmt.Print(parser.Usage(err))
 	}
 
-	resp, err := http.Get(*url)
-	if err != nil {
-		panic(err)
-
-	}
-	defer resp.Body.Close()
-	content, _ := ioutil.ReadAll(resp.Body)
-
 	rule := strings.Trim(*name, " ")
 	hostTxt := rhost()
-	hostTxt = delhost(hostTxt, rule)
-	hostTxt = hostTxt + "\n" +
-		"# " + rule + " Start\n" +
-		string(content) + "\n" +
-		"# " + rule + " End\n"
+
+	if *url != "" {
+		resp, err := http.Get(*url)
+		if err != nil {
+			panic(err)
+		}
+		defer resp.Body.Close()
+		content, _ := ioutil.ReadAll(resp.Body)
+
+		hostTxt = delhost(hostTxt, rule)
+		hostTxt = hostTxt + "\n" +
+			"# " + rule + " Start\n" +
+			string(content) + "\n" +
+			"# " + rule + " End\n"
+	}
+
+	if *rm {
+		hostTxt = delhost(hostTxt, rule)
+	}
 
 	if *dry {
-		fmt.Printf(hostTxt)
+		fmt.Println(hostTxt)
 		os.Exit(0)
 	}
 	err = whost(hostTxt)

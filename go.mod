@@ -1,4 +1,4 @@
-module example.com/remotehost
+module github.com/annidy/remotehost
 
 go 1.15
 
