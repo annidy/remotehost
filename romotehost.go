@@ -56,6 +56,8 @@ func main() {
 
 	rm := parser.Flag("r", "rm", &argparse.Options{Required: false, Help: "remove"})
 
+	verbose := parser.Flag("v", "verbose", &argparse.Options{Required: false, Help: "verbose"})
+
 	// Parse input
 	err := parser.Parse(os.Args)
 	if err != nil {
@@ -74,6 +76,10 @@ func main() {
 		}
 		defer resp.Body.Close()
 		content, _ := ioutil.ReadAll(resp.Body)
+
+		if *verbose {
+			fmt.Println(string(content))
+		}
 
 		hostTxt = delhost(hostTxt, rule)
 		hostTxt = hostTxt + "\n" +
