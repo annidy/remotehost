@@ -5,18 +5,22 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/akamensky/argparse"
 )
 
-func rhost() string {
+func readfile() string {
 	file, err := ioutil.ReadFile("/etc/hosts")
 	check(err)
 	return string(file)
 }
 
-func whost(host string) error {
+func writefile(host string) error {
 	error := ioutil.WriteFile("/etc/hosts", []byte(host), os.ModePerm)
 	return error
 }
@@ -47,15 +51,11 @@ func check(e error) {
 func main() {
 
 	parser := argparse.NewParser("romotehost", "Update host from url")
-
 	dry := parser.Flag("d", "dry", &argparse.Options{Required: false, Help: "print only"})
-
-	url := parser.String("u", "url", &argparse.Options{Required: false, Help: "url"})
-
+	url := parser.String("u", "url", &argparse.Options{Required: false, Help: "fetch url"})
 	name := parser.String("n", "name", &argparse.Options{Required: true, Help: "rule name"})
-
-	rm := parser.Flag("r", "rm", &argparse.Options{Required: false, Help: "remove"})
-
+	rm := parser.Flag("r", "rm", &argparse.Options{Required: false, Help: "remove rule"})
+	itv := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "minutes of next fetch"})
 	verbose := parser.Flag("v", "verbose", &argparse.Options{Required: false, Help: "verbose"})
 
 	// Parse input
@@ -67,35 +67,63 @@ func main() {
 	}
 
 	rule := strings.Trim(*name, " ")
-	hostTxt := rhost()
 
-	if *url != "" {
-		resp, err := http.Get(*url)
-		if err != nil {
-			panic(err)
+	// 监听SIGNUP命令
+	signCh := make(chan os.Signal, 1)
+	signal.Notify(signCh, os.Interrupt, syscall.SIGTERM)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	worker := func() {
+		defer wg.Done()
+		for {
+			hostTxt := readfile()
+			if *url != "" {
+				resp, err := http.Get(*url)
+				if err != nil {
+					panic(err)
+				}
+				defer resp.Body.Close()
+				content, _ := ioutil.ReadAll(resp.Body)
+
+				if *verbose {
+					fmt.Println(string(content))
+				}
+
+				hostTxt = delhost(hostTxt, rule)
+				hostTxt = hostTxt + "\n" +
+					"# " + rule + " Start\n" +
+					string(content) + "\n" +
+					"# " + rule + " End\n"
+			} else if *rm {
+				hostTxt = delhost(hostTxt, rule)
+			}
+
+			if *dry {
+				fmt.Println(hostTxt)
+			} else {
+				err = writefile(hostTxt)
+				check(err)
+				fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "update host successfuly")
+			}
+
+			if *itv != 0 {
+				select {
+				case <-signCh:
+					fmt.Println("Interupt by user")
+					if *rm {
+						*url = ""
+						*itv = 0
+					} else {
+						break
+					}
+				case <-time.After(time.Duration(*itv*60) * time.Second):
+					continue
+				}
+			} else {
+				break
+			}
 		}
-		defer resp.Body.Close()
-		content, _ := ioutil.ReadAll(resp.Body)
-
-		if *verbose {
-			fmt.Println(string(content))
-		}
-
-		hostTxt = delhost(hostTxt, rule)
-		hostTxt = hostTxt + "\n" +
-			"# " + rule + " Start\n" +
-			string(content) + "\n" +
-			"# " + rule + " End\n"
 	}
-
-	if *rm {
-		hostTxt = delhost(hostTxt, rule)
-	}
-
-	if *dry {
-		fmt.Println(hostTxt)
-		os.Exit(0)
-	}
-	err = whost(hostTxt)
-	check(err)
+	go worker()
+	wg.Wait()
 }
