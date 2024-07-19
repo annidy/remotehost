@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"log"
 
 	"github.com/akamensky/argparse"
 )
@@ -87,6 +88,10 @@ func main() {
 
 				if *verbose {
 					fmt.Println(string(content))
+				}
+
+				if resp.StatusCode != 200 {
+					log.Fatal("Server bad")
 				}
 
 				hostTxt = delhost(hostTxt, rule)
