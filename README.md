@@ -7,6 +7,12 @@ go install .
 ```
 
 ## example
+demos
 ```
-sudo ./remotehost -r -i 60 -u https://gitlab.com/ineo6/hosts/-/raw/master/next-hosts -n 'GitHub Host'
+sudo remotehost -r -i 30 -u https://gitee.com/if-the-wind/github-hosts/raw/main/hosts -n 'GitHub Host'
+```
+
+cron job
+```
+*/30 * * * * remotehost -v -u https://gitee.com/if-the-wind/github-hosts/raw/main/hosts -n 'GitHub Host'
 ```

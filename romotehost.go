@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"sync"
@@ -40,6 +41,13 @@ func delhost(host, name string) string {
 			result = append(result, line)
 		}
 	}
+	var i = len(result)-1
+	for ; i > 0; i-- {
+		if len(result[i-1]) != 0 {
+			break
+		}
+	}
+	result = result[:i]
 	return strings.Join(result, "\n")
 }
 
@@ -47,6 +55,20 @@ func check(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+func flush_dns() {
+	cmd := exec.Command("dscacheutil", "-flushcache")
+	err := cmd.Run()
+    if err != nil {
+		log.Fatal("dscacheutil", err)
+	}
+	cmd = exec.Command("killall", "-HUP", "mDNSResponder")
+	err = cmd.Run()
+	if err != nil {
+		log.Fatal("kill mDNSResponder", err)
+	}
+	log.Println("flush dns")
 }
 
 func main() {
@@ -95,7 +117,7 @@ func main() {
 				}
 
 				hostTxt = delhost(hostTxt, rule)
-				hostTxt = hostTxt + "\n" +
+				hostTxt = hostTxt + "\n\n" +
 					"# " + rule + " Start\n" +
 					string(content) + "\n" +
 					"# " + rule + " End\n"
@@ -109,6 +131,7 @@ func main() {
 				err = writefile(hostTxt)
 				check(err)
 				fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "update host successfuly")
+				flush_dns()
 			}
 
 			if *itv != 0 {
